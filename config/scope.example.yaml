@@ -1,0 +1,26 @@
+# Copy to config/scope.yaml and edit. The scope file is the safety contract:
+# the tool will ONLY send traffic to hosts listed in `allowlist`.
+
+# Hostnames the tool is authorized to send attack traffic to.
+allowlist:
+  - localhost
+  - 127.0.0.1
+
+# Running app(s) to attack dynamically (DAST). Every host here must be on the allowlist.
+target_urls:
+  - http://localhost:8000
+
+# Local path to the project source for static analysis (SAST). Optional.
+repo_path: /home/john/github/my_app
+
+# Safety: no destructive writes, no sustained load. Keep this true unless you
+# fully understand the consequences. DoS testing stays bounded in safe mode.
+safe_mode: true
+
+# Speed bump for non-local (public/production-looking) hosts. Must be true to
+# attack anything that isn't a private/localhost address.
+i_own_this: false
+
+# Agent brain: ollama | cerebras | openai | claude
+llm_provider: claude
+llm_model: claude-opus-4-8   # or claude-haiku-4-5 for cheap high-volume judging
