@@ -2,7 +2,7 @@
 app, cross-validates SAST+DAST, and produces a clean report on the hardened app."""
 from pathlib import Path
 
-from hacker.config import Scope
+from hacker.config import AuthConfig, Identity, Scope
 from hacker.graph import run_scan
 from hacker.models import Severity, ThreatClass
 from hacker.report import render_markdown
@@ -10,11 +10,32 @@ from hacker.report import render_markdown
 VULN_REPO = str(Path(__file__).parent / "fixtures" / "vulnerable_app")
 HARDENED_REPO = str(Path(__file__).parent / "fixtures" / "hardened_app")
 
+# The five classes reachable without logging in (access control needs auth).
+_UNAUTH_CLASSES = [tc for tc in ThreatClass if tc != ThreatClass.ACCESS_CONTROL]
+
+
+def _auth():
+    return AuthConfig(
+        login_url="http://localhost/auth/login",
+        token_json_path="token", token_header="X-Session-Token",
+        identities=[Identity(name="alice", body={"username": "alice"}),
+                    Identity(name="bob", body={"username": "bob"})],
+    )
+
 
 def test_full_scan_covers_all_five_classes(local_scope, vuln_client):
     scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"], repo_path=VULN_REPO)
     report = run_scan(scope, client=vuln_client)
 
+    found = {f.threat_class for f in report.findings}
+    for tc in _UNAUTH_CLASSES:
+        assert tc in found, f"missing findings for {tc}"
+
+
+def test_authenticated_scan_finds_access_control(vuln_client):
+    scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"],
+                  repo_path=VULN_REPO, auth=_auth())
+    report = run_scan(scope, client=vuln_client)
     found = {f.threat_class for f in report.findings}
     for tc in ThreatClass:
         assert tc in found, f"missing findings for {tc}"

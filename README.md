@@ -12,6 +12,7 @@ threat classes, then hands you a ranked report whose fixes line up with your
 | 3 | Denial of service | missing rate limit, ReDoS, unbounded query | bounded burst rate-limit probe (never floods) |
 | 4 | Database injection | string-built SQL / raw `text()` | error-based + time-based oracle (vs. control) |
 | 5 | Prompt injection | — | jailbreak / system-prompt-exfil suite + LLM judge |
+| 6 | Broken access control | — | IDOR across two identities + mass-assignment PUT (needs `auth`) |
 
 ## Safety
 
@@ -29,6 +30,15 @@ cp config/scope.example.yaml config/scope.yaml   # then edit it
 ```
 
 CI gate: `--fail-on high` exits non-zero if any High/Critical finding is present.
+
+To gate only on *new* issues (not pre-existing backlog), keep a baseline:
+
+```bash
+# once, to record the current state:
+python -m hacker --scope config/scope.yaml --write-baseline baseline.json
+# in CI, fail only on findings introduced since the baseline:
+python -m hacker --scope config/scope.yaml --baseline baseline.json --fail-on high
+```
 
 The agent brain / prompt-injection judge uses the provider in `scope.yaml`
 (`claude` | `openai` | `cerebras` | `ollama`). If no LLM is configured/reachable, the

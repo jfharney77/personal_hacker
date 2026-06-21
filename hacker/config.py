@@ -18,6 +18,28 @@ class ScopeError(Exception):
     """Raised when a target is out of scope or the scope file is invalid."""
 
 
+class Identity(BaseModel):
+    """One login the tool can authenticate as. Two are needed to test IDOR."""
+
+    name: str
+    # Request body sent to the login endpoint (e.g. {"username": "...", "password": "..."}).
+    body: dict = Field(default_factory=dict)
+
+
+class AuthConfig(BaseModel):
+    """How to authenticate against the target so scans run as a logged-in user."""
+
+    login_url: str
+    method: str = "POST"
+    identities: list[Identity] = Field(default_factory=list)
+    # Dotted path into the JSON login response holding the token, e.g. "token" or "data.token".
+    token_json_path: str | None = None
+    # Header to send the token in (header-based auth).
+    token_header: str | None = "X-Session-Token"
+    # Cookie name to reuse from the login response (cookie-based auth). Either this or token_*.
+    token_cookie: str | None = None
+
+
 # Hosts that look like production. Touching these requires explicit opt-in,
 # because "friendly" hacking still sends real attack traffic.
 _PROD_LIKE_SUFFIXES = (".com", ".net", ".org", ".io", ".app", ".dev", ".ai", ".co")
@@ -49,6 +71,8 @@ class Scope(BaseModel):
     target_urls: list[str] = Field(default_factory=list)
     # Local path to the project source for static analysis (optional).
     repo_path: str | None = None
+    # Optional authentication so dynamic scans run as a logged-in user (unlocks IDOR).
+    auth: AuthConfig | None = None
     # Safe mode: no destructive writes, no sustained load. Default ON.
     safe_mode: bool = True
     # Required to test a production-looking (public) host. A deliberate speed bump.
@@ -95,6 +119,12 @@ class Scope(BaseModel):
             if host not in self.allowed_hosts:
                 raise ScopeError(
                     f"Target {url!r} (host {host!r}) is not on the allowlist."
+                )
+        if self.auth is not None:
+            host = _host_of(self.auth.login_url)
+            if host not in self.allowed_hosts:
+                raise ScopeError(
+                    f"auth.login_url host {host!r} is not on the allowlist."
                 )
         if self.repo_path is not None and not Path(self.repo_path).exists():
             raise ScopeError(f"repo_path does not exist: {self.repo_path}")

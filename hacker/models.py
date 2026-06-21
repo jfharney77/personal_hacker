@@ -37,6 +37,7 @@ class ThreatClass(str, enum.Enum):
     DOS = "denial_of_service"
     DB_INJECTION = "database_injection"
     PROMPT_INJECTION = "prompt_injection"
+    ACCESS_CONTROL = "broken_access_control"
 
 
 class Method(str, enum.Enum):

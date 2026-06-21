@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import httpx
 
+from .auth import authenticate_all
 from .config import Scope
 from .llm import make_injection_judge
 from .models import Finding, Method, ScanReport, ThreatClass
-from .modules import credentials, dbinjection, dos, promptinjection, sessions
+from .modules import accesscontrol, credentials, dbinjection, dos, promptinjection, sessions
 from .recon import Recon, run_recon
 
 
@@ -39,6 +40,13 @@ def run_scan(scope: Scope, client: httpx.Client | None = None) -> ScanReport:
     owns_client = client is None
     client = client or httpx.Client(timeout=15.0, follow_redirects=True, verify=False)
     try:
+        # Authenticate once (if configured) and scan the rest as a logged-in user.
+        sessions_ = authenticate_all(scope, client)
+        primary = next((s for s in sessions_ if s.authenticated), None)
+        if primary:
+            client.headers.update(primary.headers)
+            client.cookies.update(primary.cookies)
+
         for url in scope.target_urls:
             recon: Recon = run_recon(scope, url, client=client)
             if not recon.reachable:
@@ -48,6 +56,7 @@ def run_scan(scope: Scope, client: httpx.Client | None = None) -> ScanReport:
             report.add(*dos.run_dynamic(scope, recon, client))
             report.add(*dbinjection.run_dynamic(scope, recon, client))
             report.add(*promptinjection.run_dynamic(scope, recon, client, judge=judge))
+            report.add(*accesscontrol.run_dynamic(scope, recon, client, sessions=sessions_))
     finally:
         if owns_client:
             client.close()

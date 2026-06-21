@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from .baseline import load_baseline_keys, new_findings, write_baseline
 from .config import ScopeError, load_scope
 from .graph import run_scan
 from .models import Severity
@@ -19,7 +20,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", help="Write the JSON report to this path.")
     parser.add_argument(
         "--fail-on", choices=[s.value for s in Severity], default=None,
-        help="Exit non-zero if any finding at or above this severity is present (for CI).")
+        help="Exit non-zero if a finding at or above this severity is present. With "
+             "--baseline, only NEW findings count (for CI gating).")
+    parser.add_argument(
+        "--baseline", help="Previous report JSON; only findings new since then are gated.")
+    parser.add_argument(
+        "--write-baseline", help="Write this run as the new baseline JSON.")
     parser.add_argument(
         "--i-own-this", action="store_true",
         help="Confirm ownership of non-local hosts (overrides scope file).")
@@ -44,10 +50,26 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.json).write_text(render_json(report))
         print(f"JSON report → {args.json}")
 
+    # Decide which findings the gate considers: everything, or only what's new.
+    gated = report.findings
+    if args.baseline is not None:
+        baseline_keys = load_baseline_keys(args.baseline)
+        gated = new_findings(report, baseline_keys)
+        print(f"\n{len(gated)} new finding(s) since baseline "
+              f"({len(report.findings) - len(gated)} pre-existing).")
+        for f in gated:
+            print(f"  + [{f.severity.value}] {f.title} @ {f.location or '—'}")
+
+    if args.write_baseline:
+        write_baseline(report, args.write_baseline)
+        print(f"Baseline written → {args.write_baseline}")
+
     if args.fail_on:
         threshold = Severity(args.fail_on).rank()
-        if any(f.severity.rank() >= threshold for f in report.findings):
-            print(f"\n[fail-on] findings at or above {args.fail_on} present.", file=sys.stderr)
+        if any(f.severity.rank() >= threshold for f in gated):
+            scope_word = "new " if args.baseline is not None else ""
+            print(f"\n[fail-on] {scope_word}findings at or above {args.fail_on} present.",
+                  file=sys.stderr)
             return 1
     return 0
 

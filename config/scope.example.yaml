@@ -13,6 +13,19 @@ target_urls:
 # Local path to the project source for static analysis (SAST). Optional.
 repo_path: /home/john/github/my_app
 
+# Optional: log in so dynamic scans run as a real user. Two identities unlock
+# IDOR / broken-access-control testing (act as A, try to reach B's resources).
+# auth:
+#   login_url: http://localhost:8000/auth/login
+#   method: POST
+#   token_json_path: token          # where the token sits in the JSON response
+#   token_header: X-Session-Token    # header to send it in (or use token_cookie)
+#   identities:
+#     - name: alice
+#       body: {username: alice, password: secret1}
+#     - name: bob
+#       body: {username: bob, password: secret2}
+
 # Safety: no destructive writes, no sustained load. Keep this true unless you
 # fully understand the consequences. DoS testing stays bounded in safe mode.
 safe_mode: true
