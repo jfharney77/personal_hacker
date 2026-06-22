@@ -15,6 +15,7 @@ import httpx
 from ..config import Scope
 from ..models import Finding, Method, Severity, ThreatClass
 from ..recon import Recon
+from ._common import injectable_endpoints, send_probe
 from ._common import iter_source_files, scan_lines
 
 TC = ThreatClass.DB_INJECTION
@@ -50,28 +51,23 @@ def run_static(repo_path: str) -> list[Finding]:
 
 def run_dynamic(scope: Scope, recon: Recon, client: httpx.Client) -> list[Finding]:
     findings: list[Finding] = []
-    for ep in recon.endpoints:
-        if ep.method != "GET" or not ep.params:
-            continue
+    # Fuzz GET query params AND POST/PUT/PATCH body params (forms found by the crawler).
+    for ep in injectable_endpoints(recon):
         url = recon.base_url + ep.path
         param = ep.params[0]
 
         # Control request to compare against.
-        try:
-            control = client.get(scope.guard(url), params={param: "normaltext"})
-        except httpx.HTTPError:
+        control = send_probe(scope, client, ep, recon.base_url, {param: "normaltext"})
+        if control is None:
             continue
 
         # 1. Error-based: a single quote provokes a DB error in the body.
-        try:
-            broken = client.get(scope.guard(url), params={param: "'"})
-        except httpx.HTTPError:
-            broken = None
+        broken = send_probe(scope, client, ep, recon.base_url, {param: "'"})
         if broken is not None and _ERROR_SIGNS.search(broken.text) and not _ERROR_SIGNS.search(control.text):
             findings.append(Finding(
                 threat_class=TC, method=Method.DYNAMIC, severity=Severity.CRITICAL,
                 title="Error-based SQL injection", location=url,
-                evidence=f"param={param!r}: a single quote triggered a DB error",
+                evidence=f"{ep.method} param={param!r}: a single quote triggered a DB error",
                 detail="Injecting a quote produced a database error absent from the control "
                        "response — input reaches the SQL engine unescaped.",
                 remediation="Parameterize the query. See the SAST findings for the source line.",
@@ -79,13 +75,14 @@ def run_dynamic(scope: Scope, recon: Recon, client: httpx.Client) -> list[Findin
             continue  # already confirmed for this endpoint
 
         # 2. Time-based oracle: a SLEEP payload measurably delays the response.
-        base_latency = _timed(client, scope, url, {param: "normaltext"})
-        sleep_latency = _timed(client, scope, url, {param: "x' AND SLEEP(2)-- "})
+        base_latency = _timed(scope, client, ep, recon.base_url, {param: "normaltext"})
+        sleep_latency = _timed(scope, client, ep, recon.base_url, {param: "x' AND SLEEP(2)-- "})
         if base_latency is not None and sleep_latency is not None and sleep_latency - base_latency > 1.5:
             findings.append(Finding(
                 threat_class=TC, method=Method.DYNAMIC, severity=Severity.CRITICAL,
                 title="Time-based (blind) SQL injection", location=url,
-                evidence=f"param={param!r}: SLEEP payload added {sleep_latency - base_latency:.1f}s",
+                evidence=f"{ep.method} param={param!r}: SLEEP payload added "
+                         f"{sleep_latency - base_latency:.1f}s",
                 detail="A time-delay payload measurably slowed the response vs. control, "
                        "indicating the input controls query execution.",
                 remediation="Parameterize the query and validate input types.",
@@ -93,10 +90,10 @@ def run_dynamic(scope: Scope, recon: Recon, client: httpx.Client) -> list[Findin
     return findings
 
 
-def _timed(client: httpx.Client, scope: Scope, url: str, params: dict) -> float | None:
+def _timed(scope: Scope, client: httpx.Client, ep, base_url: str, values: dict) -> float | None:
     try:
         start = time.perf_counter()
-        client.get(scope.guard(url), params=params)
+        send_probe(scope, client, ep, base_url, values)
         return time.perf_counter() - start
     except httpx.HTTPError:
         return None

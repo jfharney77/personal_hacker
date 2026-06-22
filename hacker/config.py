@@ -77,6 +77,8 @@ class Scope(BaseModel):
     ssrf_canary: bool = False
     # Skip network calls in the supply-chain module (no OSV.dev lookups).
     offline: bool = False
+    # Finding fingerprints to suppress (accepted risk / confirmed false positive).
+    suppress: list[str] = Field(default_factory=list)
     # Safe mode: no destructive writes, no sustained load. Default ON.
     safe_mode: bool = True
     # Required to test a production-looking (public) host. A deliberate speed bump.

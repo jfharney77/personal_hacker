@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import enum
+import hashlib
+import re
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class Severity(str, enum.Enum):
@@ -65,8 +67,33 @@ class Finding(BaseModel):
     # True once a static finding is confirmed by a dynamic probe (or vice versa).
     cross_validated: bool = False
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def fingerprint(self) -> str:
+        """A stable identity for this finding across runs.
+
+        Deliberately excludes volatile detail (line numbers, latency deltas, nonces,
+        query-string values) so a cosmetic code change doesn't make a known finding look
+        new — and so a baseline/suppression entry keeps matching after a refactor.
+        """
+        return _fingerprint(self.threat_class.value, self.title, self.location)
+
     def sort_key(self) -> tuple[int, str]:
         return (-self.severity.rank(), self.threat_class.value)
+
+
+def _normalize_location(location: str | None) -> str:
+    """Strip the volatile parts of a location: query strings and trailing line numbers."""
+    if not location:
+        return ""
+    loc = location.split("?", 1)[0]          # drop query string (param values vary)
+    loc = re.sub(r":\d+$", "", loc)           # drop trailing :<line> from "file.py:17"
+    return loc.rstrip("/")
+
+
+def _fingerprint(threat_class: str, title: str, location: str | None) -> str:
+    raw = f"{threat_class}|{title}|{_normalize_location(location)}"
+    return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 
 class ScanReport(BaseModel):
@@ -77,9 +104,21 @@ class ScanReport(BaseModel):
     safe_mode: bool = True
     started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     findings: list[Finding] = Field(default_factory=list)
+    # Findings dropped by the suppression list — kept for audit, excluded from gating.
+    suppressed: list[Finding] = Field(default_factory=list)
 
     def add(self, *findings: Finding) -> None:
         self.findings.extend(findings)
+
+    def apply_suppressions(self, fingerprints: set[str]) -> None:
+        """Move any finding whose fingerprint is suppressed out of `findings`."""
+        if not fingerprints:
+            return
+        keep, dropped = [], []
+        for f in self.findings:
+            (dropped if f.fingerprint in fingerprints else keep).append(f)
+        self.findings = keep
+        self.suppressed.extend(dropped)
 
     def ranked(self) -> list[Finding]:
         return sorted(self.findings, key=lambda f: f.sort_key())

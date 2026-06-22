@@ -1,5 +1,5 @@
 """Baseline diff + CI gating."""
-from hacker.baseline import finding_key, load_baseline_keys, new_findings, write_baseline
+from hacker.baseline import load_baseline_keys, new_findings, write_baseline
 from hacker.cli import main
 from hacker.models import Finding, Method, ScanReport, Severity, ThreatClass
 
@@ -28,11 +28,20 @@ def test_missing_baseline_means_everything_is_new(tmp_path):
     assert len(new_findings(current, keys)) == 1
 
 
-def test_finding_key_stable_across_evidence_changes():
+def test_fingerprint_stable_across_evidence_changes():
     a = _finding("Same title")
     b = _finding("Same title")
     b.evidence = "different evidence text"
-    assert finding_key(a) == finding_key(b)
+    assert a.fingerprint == b.fingerprint
+
+
+def test_fingerprint_ignores_line_numbers_and_query_values():
+    a = _finding("SQL injection", loc="app/db.py:17")
+    b = _finding("SQL injection", loc="app/db.py:42")  # moved by a refactor
+    assert a.fingerprint == b.fingerprint
+    c = _finding("SQL injection", loc="http://x/users?name=alice")
+    d = _finding("SQL injection", loc="http://x/users?name=bob")
+    assert c.fingerprint == d.fingerprint
 
 
 def test_cli_fail_on_gates_only_new_findings(tmp_path, monkeypatch):

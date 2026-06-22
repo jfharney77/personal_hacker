@@ -12,6 +12,16 @@ from .models import Severity
 from .report import render_json, render_markdown
 
 
+def _read_fingerprint_file(path: str) -> list[str]:
+    """Read a suppression file: one fingerprint per line, '#' comments and blanks ignored."""
+    out = []
+    for line in Path(path).read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            out.append(line)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="hacker", description="An automated, safe-by-default friendly hacker.")
@@ -27,6 +37,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--write-baseline", help="Write this run as the new baseline JSON.")
     parser.add_argument(
+        "--suppress", help="File of finding fingerprints to suppress (one per line; "
+                           "'#' comments allowed). Merged with scope.suppress.")
+    parser.add_argument(
         "--i-own-this", action="store_true",
         help="Confirm ownership of non-local hosts (overrides scope file).")
     args = parser.parse_args(argv)
@@ -35,10 +48,15 @@ def main(argv: list[str] | None = None) -> int:
         scope = load_scope(args.scope)
         if args.i_own_this:
             scope.i_own_this = True
+        if args.suppress:
+            scope.suppress = list(scope.suppress) + _read_fingerprint_file(args.suppress)
         report = run_scan(scope)
     except ScopeError as e:
         print(f"[scope error] {e}", file=sys.stderr)
         return 2
+
+    if report.suppressed:
+        print(f"({len(report.suppressed)} finding(s) suppressed by the suppression list.)")
 
     md = render_markdown(report)
     if args.out:

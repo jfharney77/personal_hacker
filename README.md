@@ -43,6 +43,22 @@ python -m hacker --scope config/scope.yaml --write-baseline baseline.json
 python -m hacker --scope config/scope.yaml --baseline baseline.json --fail-on high
 ```
 
+Baseline matching and suppression use each finding's stable **fingerprint** (shown in the
+report), which ignores line numbers, latency text, and query-string values — so a cosmetic
+refactor doesn't make a known finding look new. To permanently mute an accepted risk or a
+confirmed false positive, drop its fingerprint into a file and pass `--suppress`:
+
+```bash
+echo "a1b2c3d4e5f6a7b8  # accepted: internal-only endpoint" > suppress.txt
+python -m hacker --scope config/scope.yaml --suppress suppress.txt
+```
+
+## Discovery
+
+Recon enumerates endpoints from `/openapi.json` **and** by crawling HTML (links + forms),
+so targets that don't expose an OpenAPI schema (non-FastAPI, or docs disabled in prod) are
+still mapped. Injection modules probe both GET query params and POST/PUT/PATCH JSON bodies.
+
 The agent brain / prompt-injection judge uses the provider in `scope.yaml`
 (`claude` | `openai` | `cerebras` | `ollama`). If no LLM is configured/reachable, the
 prompt-injection module falls back to a heuristic judge — it never silently under-reports.

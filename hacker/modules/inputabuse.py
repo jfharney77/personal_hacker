@@ -17,7 +17,7 @@ import httpx
 from ..config import Scope
 from ..models import Finding, Method, Severity, ThreatClass
 from ..recon import Recon
-from ._common import iter_source_files, scan_lines
+from ._common import injectable_endpoints, iter_source_files, scan_lines, send_probe
 
 TC = ThreatClass.INPUT_ABUSE
 _PY = (".py",)
@@ -64,29 +64,24 @@ def run_dynamic(
     scope: Scope, recon: Recon, client: httpx.Client, canary: "SSRFCanary | None" = None
 ) -> list[Finding]:
     findings: list[Finding] = []
-    for ep in recon.endpoints:
-        if ep.method != "GET" or not ep.params:
-            continue
+    # Probe GET query params and POST/PUT/PATCH body params (forms found by the crawler).
+    for ep in injectable_endpoints(recon):
         url = recon.base_url + ep.path
         for param in ep.params:
-            findings.extend(_probe_param(scope, client, url, param, canary))
+            findings.extend(_probe_param(scope, client, recon.base_url, ep, url, param, canary))
     return findings
 
 
-def _probe_param(scope, client, url, param, canary) -> list[Finding]:
+def _probe_param(scope, client, base_url, ep, url, param, canary) -> list[Finding]:
     out: list[Finding] = []
 
     # Control request to compare against.
-    try:
-        control = client.get(scope.guard(url), params={param: "benign"}, follow_redirects=False)
-    except httpx.HTTPError:
+    control = send_probe(scope, client, ep, base_url, {param: "benign"}, follow_redirects=False)
+    if control is None:
         return out
 
     # 1. Open redirect — fully safe, we never follow the redirect.
-    try:
-        r = client.get(scope.guard(url), params={param: _REDIR_CANARY}, follow_redirects=False)
-    except httpx.HTTPError:
-        r = None
+    r = send_probe(scope, client, ep, base_url, {param: _REDIR_CANARY}, follow_redirects=False)
     if r is not None and r.status_code in (301, 302, 303, 307, 308):
         loc = r.headers.get("location", "")
         if loc.startswith(_REDIR_CANARY):
@@ -99,10 +94,7 @@ def _probe_param(scope, client, url, param, canary) -> list[Finding]:
             return out  # this param is clearly location-controlled; one finding is enough
 
     # 2. Path traversal — read-only, signature-confirmed vs control.
-    try:
-        r = client.get(scope.guard(url), params={param: _TRAVERSAL_PAYLOAD}, follow_redirects=False)
-    except httpx.HTTPError:
-        r = None
+    r = send_probe(scope, client, ep, base_url, {param: _TRAVERSAL_PAYLOAD}, follow_redirects=False)
     if r is not None and _PASSWD_SIG.search(r.text) and not _PASSWD_SIG.search(control.text):
         out.append(Finding(
             threat_class=TC, method=Method.DYNAMIC, severity=Severity.CRITICAL,
@@ -116,10 +108,7 @@ def _probe_param(scope, client, url, param, canary) -> list[Finding]:
     # 3. SSRF — confirmed ONLY by our own canary being hit (no internal traffic generated).
     if canary is not None:
         nonce = canary.new_nonce()
-        try:
-            client.get(scope.guard(url), params={param: canary.url(nonce)}, follow_redirects=False)
-        except httpx.HTTPError:
-            pass
+        send_probe(scope, client, ep, base_url, {param: canary.url(nonce)}, follow_redirects=False)
         if canary.was_hit(nonce):
             out.append(Finding(
                 threat_class=TC, method=Method.DYNAMIC, severity=Severity.CRITICAL,

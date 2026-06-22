@@ -10,9 +10,33 @@ import time
 
 import httpx
 from fastapi import FastAPI, Header, Query, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 app = FastAPI(title="vulnerable-fixture")
+
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    # Crawlable surface: an anchor to a non-API route and a POST form. Lets recon find
+    # endpoints even with no OpenAPI schema.
+    return """<html><body>
+      <a href="/users?name=alice">users</a>
+      <a href="/legacy?id=1">legacy</a>
+      <form action="/api/find" method="post"><input name="term"></form>
+    </body></html>"""
+
+
+@app.post("/api/find")
+async def find(request: Request):
+    # class 4 over POST: raw string-built SQL reachable only via a JSON body.
+    body = await request.json()
+    term = body.get("term", "")
+    cur = _db.cursor()
+    try:
+        cur.execute(f"SELECT id, name FROM users WHERE name = '{term}'")
+        return {"rows": cur.fetchall()}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.middleware("http")

@@ -76,6 +76,7 @@ def run_scan(scope: Scope, client: httpx.Client | None = None) -> ScanReport:
             client.close()
 
     _triage(report)
+    report.apply_suppressions(set(scope.suppress))
     return report
 
 

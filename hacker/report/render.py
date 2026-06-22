@@ -42,6 +42,7 @@ def render_markdown(report: ScanReport) -> str:
         lines.append("")
         lines.append(f"- **Threat class:** {f.threat_class.value}")
         lines.append(f"- **Method:** {f.method.value}")
+        lines.append(f"- **Fingerprint:** `{f.fingerprint}` (add to suppression list to mute)")
         if f.location:
             lines.append(f"- **Location:** `{f.location}`")
         if f.evidence:
