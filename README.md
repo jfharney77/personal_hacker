@@ -24,7 +24,19 @@ host is on the `allowlist`** (`Scope.guard()` enforces this on every request). N
 hosts additionally require `i_own_this: true`. Safe mode (default on) means no destructive
 writes and no sustained load — DoS testing is detection plus a tiny bounded burst only.
 
-## Usage
+## Web UI (full-stack)
+
+A React + FastAPI app (SQLite-backed) lets you manage targets, run scans from the browser,
+browse findings, manage suppressions, and track posture over time.
+
+```bash
+scripts/start_all.sh    # backend :8000 + frontend :5173 (Ctrl-C stops both)
+scripts/stop_all.sh     # stop from another terminal
+```
+
+Then open http://localhost:5173. Backend API docs at http://localhost:8000/docs.
+
+## CLI usage
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

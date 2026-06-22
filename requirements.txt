@@ -15,3 +15,6 @@ anthropic>=0.40
 fastapi>=0.110
 uvicorn>=0.27
 pytest>=8.0
+
+# Backend / persistence
+sqlmodel>=0.0.38
