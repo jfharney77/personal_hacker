@@ -16,7 +16,11 @@ from .auth import authenticate_all
 from .config import Scope
 from .llm import make_injection_judge
 from .models import Finding, Method, ScanReport, ThreatClass
-from .modules import accesscontrol, credentials, dbinjection, dos, promptinjection, sessions
+from .modules import (
+    accesscontrol, credentials, dbinjection, dos, inputabuse, misconfig,
+    promptinjection, sessions, supplychain,
+)
+from .modules.inputabuse import SSRFCanary
 from .recon import Recon, run_recon
 
 
@@ -34,11 +38,17 @@ def run_scan(scope: Scope, client: httpx.Client | None = None) -> ScanReport:
         report.add(*sessions.run_static(scope.repo_path))
         report.add(*dos.run_static(scope.repo_path))
         report.add(*dbinjection.run_static(scope.repo_path))
+        report.add(*inputabuse.run_static(scope.repo_path))
+        report.add(*supplychain.run_static(scope.repo_path, offline=scope.offline))
 
     # --- Dynamic phase (DAST): per running target. ---
     judge = make_injection_judge(scope)  # LLM judge if available, else None -> heuristic
     owns_client = client is None
     client = client or httpx.Client(timeout=15.0, follow_redirects=True, verify=False)
+    # Stand up the SSRF canary only if explicitly enabled (binds localhost only).
+    canary_cm = SSRFCanary() if scope.ssrf_canary else None
+    if canary_cm is not None:
+        canary_cm.__enter__()
     try:
         # Authenticate once (if configured) and scan the rest as a logged-in user.
         sessions_ = authenticate_all(scope, client)
@@ -57,7 +67,11 @@ def run_scan(scope: Scope, client: httpx.Client | None = None) -> ScanReport:
             report.add(*dbinjection.run_dynamic(scope, recon, client))
             report.add(*promptinjection.run_dynamic(scope, recon, client, judge=judge))
             report.add(*accesscontrol.run_dynamic(scope, recon, client, sessions=sessions_))
+            report.add(*inputabuse.run_dynamic(scope, recon, client, canary=canary_cm))
+            report.add(*misconfig.run_dynamic(scope, recon, client))
     finally:
+        if canary_cm is not None:
+            canary_cm.__exit__(None, None, None)
         if owns_client:
             client.close()
 

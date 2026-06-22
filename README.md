@@ -13,6 +13,9 @@ threat classes, then hands you a ranked report whose fixes line up with your
 | 4 | Database injection | string-built SQL / raw `text()` | error-based + time-based oracle (vs. control) |
 | 5 | Prompt injection | — | jailbreak / system-prompt-exfil suite + LLM judge |
 | 6 | Broken access control | — | IDOR across two identities + mass-assignment PUT (needs `auth`) |
+| 7 | SSRF / traversal / redirect | input-as-location patterns | open redirect, path traversal (`/etc/passwd` sig), SSRF via local canary |
+| 8 | Security misconfiguration | — | missing CSP/HSTS/headers, credentialed CORS reflection, weak/expiring TLS |
+| 9 | Supply chain | vulnerable deps (OSV/offline DB), secrets in git **history** | — |
 
 ## Safety
 

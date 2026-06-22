@@ -34,6 +34,13 @@ safe_mode: true
 # attack anything that isn't a private/localhost address.
 i_own_this: false
 
+# Actively confirm SSRF by binding a local canary listener (localhost only) and
+# checking whether the target fetches it. Off by default (passive detection only).
+ssrf_canary: false
+
+# Skip the supply-chain module's OSV.dev lookups; use only the bundled advisory DB.
+offline: false
+
 # Agent brain: ollama | cerebras | openai | claude
 llm_provider: claude
 llm_model: claude-opus-4-8   # or claude-haiku-4-5 for cheap high-volume judging

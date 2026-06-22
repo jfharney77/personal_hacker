@@ -38,6 +38,9 @@ class ThreatClass(str, enum.Enum):
     DB_INJECTION = "database_injection"
     PROMPT_INJECTION = "prompt_injection"
     ACCESS_CONTROL = "broken_access_control"
+    INPUT_ABUSE = "server_side_request_and_path_abuse"
+    MISCONFIGURATION = "security_misconfiguration"
+    SUPPLY_CHAIN = "supply_chain"
 
 
 class Method(str, enum.Enum):

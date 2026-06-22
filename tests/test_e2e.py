@@ -24,7 +24,9 @@ def _auth():
 
 
 def test_full_scan_covers_all_five_classes(local_scope, vuln_client):
-    scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"], repo_path=VULN_REPO)
+    # offline=True keeps the supply-chain module deterministic (bundled advisory DB only).
+    scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"],
+                  repo_path=VULN_REPO, offline=True)
     report = run_scan(scope, client=vuln_client)
 
     found = {f.threat_class for f in report.findings}
@@ -34,7 +36,7 @@ def test_full_scan_covers_all_five_classes(local_scope, vuln_client):
 
 def test_authenticated_scan_finds_access_control(vuln_client):
     scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"],
-                  repo_path=VULN_REPO, auth=_auth())
+                  repo_path=VULN_REPO, auth=_auth(), offline=True)
     report = run_scan(scope, client=vuln_client)
     found = {f.threat_class for f in report.findings}
     for tc in ThreatClass:
@@ -54,7 +56,8 @@ def test_authenticated_scan_finds_access_control(vuln_client):
 
 
 def test_hardened_app_has_no_high_severity(hardened_client):
-    scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"], repo_path=HARDENED_REPO)
+    scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"],
+                  repo_path=HARDENED_REPO, offline=True)
     report = run_scan(scope, client=hardened_client)
     high = [f for f in report.findings if f.severity.rank() >= Severity.HIGH.rank()]
     assert not high, f"false positives on hardened app: {[f.title for f in high]}"

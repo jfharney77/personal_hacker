@@ -6,7 +6,13 @@ Each module exposes some of:
 
 The orchestrator (hacker.graph) calls whichever are present and cross-validates.
 """
-from . import accesscontrol, credentials, dbinjection, dos, promptinjection, sessions
+from . import (
+    accesscontrol, credentials, dbinjection, dos, inputabuse, misconfig,
+    promptinjection, sessions, supplychain,
+)
 
 # Modules in run order.
-ALL_MODULES = [credentials, sessions, dos, dbinjection, promptinjection, accesscontrol]
+ALL_MODULES = [
+    credentials, sessions, dos, dbinjection, promptinjection, accesscontrol,
+    inputabuse, misconfig, supplychain,
+]

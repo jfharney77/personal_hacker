@@ -73,6 +73,10 @@ class Scope(BaseModel):
     repo_path: str | None = None
     # Optional authentication so dynamic scans run as a logged-in user (unlocks IDOR).
     auth: AuthConfig | None = None
+    # Enable the local SSRF canary listener to actively confirm SSRF (localhost only).
+    ssrf_canary: bool = False
+    # Skip network calls in the supply-chain module (no OSV.dev lookups).
+    offline: bool = False
     # Safe mode: no destructive writes, no sustained load. Default ON.
     safe_mode: bool = True
     # Required to test a production-looking (public) host. A deliberate speed bump.

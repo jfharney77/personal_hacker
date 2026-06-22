@@ -1,0 +1,15 @@
+{
+  "_comment": "Tiny offline fallback advisory set. Real accuracy comes from pip-audit/osv-scanner or the OSV.dev API; this exists so offline scans (and tests) still flag well-known issues. Keyed by lowercase package name.",
+  "pyyaml": [
+    {"id": "CVE-2020-14343", "severity": "critical", "versions": ["5.3.1", "5.3", "5.2", "5.1"], "fixed": "5.4"}
+  ],
+  "jinja2": [
+    {"id": "CVE-2024-22195", "severity": "medium", "versions": ["3.1.0", "3.1.1", "3.1.2"], "fixed": "3.1.3"}
+  ],
+  "requests": [
+    {"id": "CVE-2023-32681", "severity": "high", "versions": ["2.28.0", "2.28.1", "2.27.0"], "fixed": "2.31.0"}
+  ],
+  "lodash": [
+    {"id": "CVE-2021-23337", "severity": "high", "versions": ["4.17.20", "4.17.19"], "fixed": "4.17.21"}
+  ]
+}

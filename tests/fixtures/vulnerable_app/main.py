@@ -4,13 +4,58 @@ DO NOT deploy this. Every "vulnerability" here is deliberate and exists so the
 attack modules have something to find. A hardened twin lives in
 tests/fixtures/hardened_app/ for false-positive testing.
 """
+import os
 import sqlite3
 import time
 
+import httpx
 from fastapi import FastAPI, Header, Query, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 app = FastAPI(title="vulnerable-fixture")
+
+
+@app.middleware("http")
+async def permissive_cors(request: Request, call_next):
+    # class: misconfiguration — reflects any Origin and allows credentials; no sec headers.
+    resp = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+    return resp
+
+
+# class: input abuse — base dir resolves '../../etc/passwd' to /etc/passwd deterministically.
+# The directory must exist for the kernel to process the '..' segments.
+_FILE_BASE = "/tmp/ph_fixture_data/"
+os.makedirs(_FILE_BASE, exist_ok=True)
+
+
+@app.get("/fetch")
+def fetch(url: str = Query("")):
+    # SSRF: fetches whatever URL the user supplies.
+    try:
+        r = httpx.get(url, timeout=3)
+        return {"body": r.text[:200]}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
+
+
+@app.get("/file")
+def read_file(name: str = Query("")):
+    # Path traversal: user input concatenated into a filesystem path.
+    try:
+        with open(_FILE_BASE + name) as f:
+            return PlainTextResponse(f.read())
+    except OSError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+
+
+@app.get("/go")
+def go(next: str = Query("/")):
+    # Open redirect: redirects to an arbitrary user-supplied URL.
+    return RedirectResponse(next)
 
 # class 6: per-user notes with NO ownership checks (IDOR + mass-assignment)
 _TOKENS = {"token-alice": "alice", "token-bob": "bob"}
