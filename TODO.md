@@ -43,6 +43,12 @@ Deferred work, roughly in priority order. Nothing here is started.
 - [ ] **#3 (partial) — deepen dynamic probing.** POST/JSON bodies now covered; still missing:
       chained/stateful exploits (login → CSRF token → action), real DoS threshold discovery
       (not just "is there a 429"), and per-endpoint auth context.
+- [ ] **Broaden vertical privilege escalation (base check now implemented).** The
+      `accesscontrol._vertical_privilege_escalation` heuristic only flags GET endpoints whose
+      *path contains "admin"* that return 200 to a regular user. Gaps to close: privileged
+      endpoints not named "admin" (e.g. `/internal`, `/users/{id}/role`, `/billing`); POST/PUT
+      admin *actions* (state-changing, so safe-mode-gated); and a true role comparison (probe as
+      an admin identity vs. a regular one and diff) rather than relying on the path keyword.
 
 ## Packaging / DX
 
