@@ -90,6 +90,17 @@ def get_note(note_id: int, x_session_token: str = Header(default="")):
     return note
 
 
+@app.get("/admin/users")
+def admin_users(x_session_token: str = Header(default="")):
+    # Role-based authorization: only admins may list all users.
+    user = _user(x_session_token)
+    if user is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if user != "admin":
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return {"users": list(_TOKENS.values())}
+
+
 @app.put("/api/notes/{note_id}")
 async def put_note(note_id: int, request: Request, x_session_token: str = Header(default="")):
     user = _user(x_session_token)

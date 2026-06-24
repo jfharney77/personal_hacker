@@ -46,6 +46,14 @@ def test_mass_assignment_detected_on_vulnerable_app(vuln_client):
     assert any("Mass-assignment" in f.title for f in findings)
 
 
+def test_vertical_privilege_escalation_detected_on_vulnerable_app(vuln_client):
+    scope = _auth_scope()
+    sessions = authenticate_all(scope, vuln_client)
+    recon = run_recon(scope, "http://localhost", client=vuln_client)
+    findings = accesscontrol.run_dynamic(scope, recon, vuln_client, sessions=sessions)
+    assert any("Vertical privilege escalation" in f.title for f in findings)
+
+
 def test_no_access_control_findings_without_auth(vuln_client):
     # No sessions → module must be a no-op (never guesses).
     scope = Scope(allowlist=["localhost"], target_urls=["http://localhost"])

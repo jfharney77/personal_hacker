@@ -112,6 +112,14 @@ def get_note(note_id: int, x_session_token: str = Header(default="")):
     return note
 
 
+@app.get("/admin/users")
+def admin_users(x_session_token: str = Header(default="")):
+    # class 6 (vertical privilege escalation): any authenticated user can access admin data.
+    if _user(x_session_token) is None:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return {"users": list(_TOKENS.values())}
+
+
 @app.put("/api/notes/{note_id}")
 async def put_note(note_id: int, request: Request, x_session_token: str = Header(default="")):
     # class 6 (mass-assignment): applies the raw body, including owner/role/etc.

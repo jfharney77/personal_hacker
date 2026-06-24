@@ -56,6 +56,7 @@ def run_dynamic(
     if len(sessions) >= 2:
         findings.extend(_idor(scope, recon, client, id_endpoints, sessions[0], sessions[1]))
     findings.extend(_mass_assignment(scope, recon, client, id_endpoints, sessions[0]))
+    findings.extend(_vertical_privilege_escalation(scope, recon, client, sessions[0]))
     return findings
 
 
@@ -133,6 +134,34 @@ def _mass_assignment(
                 _restore(client, scope, url, ep.method, base_body, a)  # leave staging as we found it
                 break
             _restore(client, scope, url, ep.method, base_body, a)
+    return findings
+
+
+def _vertical_privilege_escalation(
+    scope: Scope, recon: Recon, client: httpx.Client, session: Session
+) -> list[Finding]:
+    findings: list[Finding] = []
+    admin_paths = [e for e in recon.endpoints if "admin" in e.path.lower() and e.method == "GET"]
+    for ep in admin_paths:
+        url = recon.base_url + ep.path
+        try:
+            resp = client.get(scope.guard(url), headers=session.headers, cookies=session.cookies)
+        except httpx.HTTPError:
+            continue
+        # Admin endpoint reachable by a non-admin identity: missing role-based auth.
+        if resp.status_code == 200 and resp.text.strip():
+            findings.append(Finding(
+                threat_class=TC, method=Method.DYNAMIC, severity=Severity.HIGH,
+                title="Vertical privilege escalation — admin endpoint reachable by regular user",
+                location=url,
+                evidence=f"identity {session.name!r} received 200 from {ep.path}",
+                detail="An endpoint whose path suggests administrative functionality returned "
+                       "success for a regular authenticated identity. This indicates missing "
+                       "role-based access control.",
+                remediation="Enforce role-based authorization on admin endpoints and return 403 "
+                            "for non-admin identities.",
+            ))
+            break  # one demonstration is enough
     return findings
 
 
