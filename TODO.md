@@ -2,6 +2,19 @@
 
 Deferred work, roughly in priority order. Nothing here is started.
 
+## Backend scalability
+
+- [ ] **Job queue for scans (now that the UI can trigger them).** Scans currently run in a
+      FastAPI `BackgroundTasks` task, so a long DAST scan ties up a server worker and the
+      result is lost if the process restarts mid-scan. Move to a real queue:
+      - A `jobs` table (or a lightweight broker) with `pending → running → done/error` and a
+        single worker process draining it, so the API just enqueues and returns immediately.
+      - Concurrency cap (1–2 scans at a time) so the tool can't self-DoS its own host or the
+        targets — ties into critique #5 (self-throttling).
+      - Make scans resumable/retryable and surface live progress (% of modules done) to the UI.
+      - Options in rough order of effort: stdlib `concurrent.futures` + a DB-backed queue →
+        APScheduler → Celery/RQ + Redis if it ever needs to scale out.
+
 ## Deployment / automation
 
 - [ ] **Nightly per-project CI scan (deferred on purpose).** Wire `personal_hacker`
