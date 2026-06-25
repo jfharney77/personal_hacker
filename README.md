@@ -24,6 +24,8 @@ host is on the `allowlist`** (`Scope.guard()` enforces this on every request). N
 hosts additionally require `i_own_this: true`. Safe mode (default on) means no destructive
 writes and no sustained load — DoS testing is detection plus a tiny bounded burst only.
 
+📖 **Full usage guide: [docs/MANUAL.md](docs/MANUAL.md)** — install, scope file, CLI flags, CI gating, and the web UI walkthrough.
+
 ## Web UI (full-stack)
 
 A React + FastAPI app (SQLite-backed) lets you manage targets, run scans from the browser,
